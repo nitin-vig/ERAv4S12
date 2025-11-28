@@ -242,7 +242,7 @@ class DataLoaderLite:
 model = GPT(GPTConfig())
 model.to(device)
 
-train_loader = DataLoaderLite(B = 64, T = 256)  # Increased for better GPU utilization
+train_loader = DataLoaderLite(B = 48, T = 192)  # Optimized for ~12GB GPU usage
 
 # Training configuration
 max_iters = 5000  # Increased from 50
