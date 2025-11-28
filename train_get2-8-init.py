@@ -242,7 +242,7 @@ class DataLoaderLite:
 model = GPT(GPTConfig())
 model.to(device)
 
-train_loader = DataLoaderLite(B = 8, T = 64)
+train_loader = DataLoaderLite(B = 32, T = 128)
 
 # Training configuration
 max_iters = 5000  # Increased from 50
