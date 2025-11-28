@@ -254,6 +254,25 @@ warmup_iters = 100
 learning_rate = 3e-4
 min_lr = 3e-5
 gradient_accumulation_steps = 2  # Accumulate gradients for effective batch size of 64
+target_eval_loss = 0.09  # Stop training when eval loss is below this
+
+# Setup checkpoint directory
+checkpoint_dir = './checkpoints'
+try:
+    from google.colab import drive
+    if not os.path.exists('/content/drive'):
+        drive.mount('/content/drive')
+        print('Google Drive mounted.')
+    else:
+        print('Google Drive already mounted.')
+    checkpoint_dir = '/content/drive/MyDrive/checkpoints'
+except ImportError:
+    print('Not in Colab. Saving checkpoints to ./checkpoints')
+except Exception as e:
+    print(f'Could not mount Google Drive: {e}. Saving checkpoints to ./checkpoints')
+
+os.makedirs(checkpoint_dir, exist_ok=True)
+print(f'Checkpoints will be saved to: {checkpoint_dir}')
 
 # Optimizer with weight decay
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=0.1, betas=(0.9, 0.95))
@@ -331,6 +350,55 @@ for _ in range(eval_iters):
 final_avg_loss = sum(final_losses) / len(final_losses)
 print(f'\nFinal train loss: {current_loss:.4f}')
 print(f'Final eval loss: {final_avg_loss:.4f}')
+
+# Save the model
+print('\nSaving model...')
+checkpoint = {
+    'model_state_dict': model.state_dict(),
+    'optimizer_state_dict': optimizer.state_dict(),
+    'config': model.config,
+    'final_train_loss': current_loss,
+    'final_eval_loss': final_avg_loss,
+    'max_iters': max_iters,
+}
+
+# Check if running in Colab and mount Google Drive if available
+save_dir = './'
+try:
+    from google.colab import drive
+    if not os.path.exists('/content/drive'):
+        drive.mount('/content/drive')
+        print('Google Drive mounted.')
+    else:
+        print('Google Drive already mounted.')
+    save_dir = '/content/drive/MyDrive/'
+    print(f'Saving to: {save_dir}')
+except ImportError:
+    print('Not in Colab. Saving to current directory.')
+except Exception as e:
+    print(f'Could not mount Google Drive: {e}. Saving to current directory.')
+
+# Save checkpoint
+checkpoint_path = os.path.join(save_dir, 'gpt_model_checkpoint.pt')
+torch.save(checkpoint, checkpoint_path)
+print(f'Model saved to: {checkpoint_path}')
+
+# Also save just the model state dict (lighter weight for inference)
+model_path = os.path.join(save_dir, 'gpt_model.pt')
+torch.save(model.state_dict(), model_path)
+print(f'Model state dict saved to: {model_path}')
+
+# Save config separately for easy loading
+config_path = os.path.join(save_dir, 'gpt_config.pt')
+torch.save(model.config, config_path)
+print(f'Config saved to: {config_path}')
+
+print('\nTo load the model later:')
+print('  checkpoint = torch.load("gpt_model_checkpoint.pt")')
+print('  model = GPT(checkpoint["config"])')
+print('  model.load_state_dict(checkpoint["model_state_dict"])')
+print('  model.to(device)')
+
 import sys; sys.exit(0)
 
 torch.manual_seed(42)
