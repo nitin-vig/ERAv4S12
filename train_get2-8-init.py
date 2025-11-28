@@ -192,6 +192,8 @@ class GPT(nn.Module):
 device = 'cpu'
 if torch.cuda.is_available():
     device = 'cuda'
+    # Clear cache to reduce fragmentation
+    torch.cuda.empty_cache()
 elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
     device = "mps"
 print(f"using device: {device}")
@@ -242,7 +244,7 @@ class DataLoaderLite:
 model = GPT(GPTConfig())
 model.to(device)
 
-train_loader = DataLoaderLite(B = 48, T = 192)  # Optimized for ~12GB GPU usage
+train_loader = DataLoaderLite(B = 32, T = 128)  # Reduced to fit in GPU memory
 
 # Training configuration
 max_iters = 5000  # Increased from 50
@@ -251,6 +253,7 @@ eval_iters = 200
 warmup_iters = 100
 learning_rate = 3e-4
 min_lr = 3e-5
+gradient_accumulation_steps = 2  # Accumulate gradients for effective batch size of 64
 
 # Optimizer with weight decay
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=0.1, betas=(0.9, 0.95))
@@ -264,9 +267,10 @@ def get_lr(it):
     progress = (it - warmup_iters) / (max_iters - warmup_iters)
     return min_lr + (learning_rate - min_lr) * 0.5 * (1.0 + math.cos(math.pi * progress))
 
-# Training loop
+# Training loop with gradient accumulation
 model.train()
 current_loss = None
+loss_sum = 0.0
 
 for i in range(max_iters):
     # Get learning rate for this iteration
@@ -277,21 +281,29 @@ for i in range(max_iters):
     # Forward pass
     x, y = train_loader.next_batch()
     x, y = x.to(device), y.to(device)
-    optimizer.zero_grad()
+    
     logits, loss = model(x, y)
+    # Scale loss by accumulation steps
+    loss = loss / gradient_accumulation_steps
     loss.backward()
     
-    # Gradient clipping for stability
-    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+    # Track loss (unscaled for logging)
+    loss_sum += loss.item() * gradient_accumulation_steps
     
-    optimizer.step()
-    
-    # Track current loss
-    current_loss = loss.item()
+    # Update weights every gradient_accumulation_steps
+    if (i + 1) % gradient_accumulation_steps == 0:
+        # Gradient clipping for stability
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        optimizer.step()
+        optimizer.zero_grad()
+        current_loss = loss_sum / gradient_accumulation_steps
+        loss_sum = 0.0
     
     # Logging
     if i % 100 == 0 or i == max_iters - 1:
-        print(f'step {i:5d} | lr: {lr:.2e} | loss: {current_loss:.4f}')
+        if current_loss is None:
+            current_loss = loss.item() * gradient_accumulation_steps
+        print(f'step {i:5d} | lr: {lr:.2e} | loss: {current_loss:.4f} | eff_batch: {train_loader.B * gradient_accumulation_steps}')
     
     # Evaluation
     if i % eval_interval == 0 and i > 0:
