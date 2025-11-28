@@ -242,7 +242,7 @@ class DataLoaderLite:
 model = GPT(GPTConfig())
 model.to(device)
 
-train_loader = DataLoaderLite(B = 32, T = 128)
+train_loader = DataLoaderLite(B = 64, T = 256)  # Increased for better GPU utilization
 
 # Training configuration
 max_iters = 5000  # Increased from 50
@@ -266,6 +266,8 @@ def get_lr(it):
 
 # Training loop
 model.train()
+current_loss = None
+
 for i in range(max_iters):
     # Get learning rate for this iteration
     lr = get_lr(i)
@@ -284,9 +286,12 @@ for i in range(max_iters):
     
     optimizer.step()
     
+    # Track current loss
+    current_loss = loss.item()
+    
     # Logging
     if i % 100 == 0 or i == max_iters - 1:
-        print(f'step {i:5d} | lr: {lr:.2e} | loss: {loss.item():.4f}')
+        print(f'step {i:5d} | lr: {lr:.2e} | loss: {current_loss:.4f}')
     
     # Evaluation
     if i % eval_interval == 0 and i > 0:
@@ -302,7 +307,18 @@ for i in range(max_iters):
         print(f'step {i:5d} | eval loss: {avg_loss:.4f}')
         model.train()
 
-print(f'\nFinal loss: {loss.item():.4f}')
+# Final evaluation
+model.eval()
+final_losses = []
+for _ in range(eval_iters):
+    x_eval, y_eval = train_loader.next_batch()
+    x_eval, y_eval = x_eval.to(device), y_eval.to(device)
+    with torch.no_grad():
+        _, loss_eval = model(x_eval, y_eval)
+        final_losses.append(loss_eval.item())
+final_avg_loss = sum(final_losses) / len(final_losses)
+print(f'\nFinal train loss: {current_loss:.4f}')
+print(f'Final eval loss: {final_avg_loss:.4f}')
 import sys; sys.exit(0)
 
 torch.manual_seed(42)
