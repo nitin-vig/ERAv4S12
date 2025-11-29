@@ -1,0 +1,29 @@
+# Model files
+gpt_model.pt
+gpt_config.pt
+gpt_model_checkpoint.pt
+
+# Checkpoints directory
+checkpoints/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
