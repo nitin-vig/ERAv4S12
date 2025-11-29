@@ -1,0 +1,14 @@
+# Model checkpoint (upload separately to HF Space)
+gpt_model_checkpoint.pt
+*.pt
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+.env
+venv/
+env/
+
